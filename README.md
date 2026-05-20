@@ -17,11 +17,31 @@
 
 [상세 README →](./2dgs/README.md)
 
-### [2dgs-accelerated/](./2dgs-accelerated) — Multi-backend Renderer *(진행중)*
+### [2dgs-accelerated/](./2dgs-accelerated) — Multi-backend Renderer
 
 2dgs의 프로파일링 결과(`bmm 600회`, `nonzero 590회` 등)를 정량 목표로 삼아
-render를 OpenMP / std::thread / CUDA / Metal로 가속.
+render를 OpenMP / std::thread / CUDA로 가속.
 forward + backward를 `torch.autograd.Function`으로 묶어 학습 루프에 통합.
+
+#### `cpp_single` 백엔드 — 단일 스레드 C++ + nanobind ✅
+
+dispatch 오버헤드 제거만으로 의미 있는 가속. 병렬화 없이.
+
+| | forward | backward | bwd/fwd | 비고 |
+|---|---|---|---|---|
+| Python (SSIM 교체 후) | 43 ms | 88 ms | 2.03× | autograd traversal 포함 |
+| **C++ cpp_single** | **9.17 ms** | **11.15 ms** | **1.22×** | fused 1-call forward + 1-call backward |
+| 가속 배율 | **4.7×** | **7.9×** | | bwd가 더 큰 가속은 autograd 노드 traversal 사라진 결과 |
+
+(N=20, 256×256, CPU. bench.py / test_parity 검증 통과.)
+
+`single thread`인데 4.7×–7.9× 빠른 이유: 가우시안당 ~60 PyTorch op dispatch가
+**1번의 C++ 함수 호출**로 줄면서 ~24 ms / iter의 dispatch 오버헤드 삭제
+
+#### 다음 단계
+
+- `std_thread/` — std::thread + thread pool 기반 멀티 스레드 (backward 자명, forward는 per-thread buffer 후 reduce)
+- `cuda/` — GPU. 큰 N + 큰 해상도용.
 
 ### 3D Gaussian Splatting Pipeline *(미진행)*
 

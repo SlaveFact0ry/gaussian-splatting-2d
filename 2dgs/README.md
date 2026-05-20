@@ -73,16 +73,27 @@ custom SSIM 구현을 `pytorch-msssim`(separable 11×1 + 1×11)으로 교체:
 | After  | 131 ms | 43 ms | 88 ms  | 2.03× | 50% |
 | | **2.84× 빠름** | | | | |
 
-### 다음 단계 (render 커널화의 정량 목표)
+### render 커널화 — [`2dgs-accelerated/`](../2dgs-accelerated)에서 완료 ✅
 
-SSIM 교체 후 남은 `render_gaussians_2d` 비중이 ~42%로 가시화. bench.py 측정에서
-다음 호출 카운트가 가속 백엔드의 정량 목표:
+SSIM 교체 후 남은 ~42%의 `render_gaussians_2d` 비중이 dispatch 오버헤드 dominated인
+지표 (`aten::bmm` 600회, `aten::nonzero` 590회, `aten::mul` 2455회 평균 7µs).
 
-- `aten::bmm` **600회** (5 iter × 20 가우시안 × 6) → 1 fused 호출
-- `aten::nonzero` **590회** (boolean indexing 내부) → 0 (tile-based culling)
-- `aten::mul` **2455회**, 평균 7 µs → fused 커널에서 인라인
+`2dgs-accelerated/render_2dgs/cpp_single`에서 nanobind + `torch.autograd.Function`으로
+forward + backward를 각각 1-call C++ 커널로 묶어 처리. 단일 스레드만으로:
 
-가속 백엔드(`render_2dgs/`) 작업 전에 `bench.py`로 베이스라인 재측정 권장.
+| | forward | backward | bwd/fwd |
+|---|---|---|---|
+| Python (SSIM 교체 후, 위 표 After 행) | 43 ms | 88 ms | 2.03× |
+| C++ cpp_single | **9.17 ms** | **11.15 ms** | **1.22×** |
+| | 4.7× | 7.9× | autograd traversal 사라진 결과 |
+
+
+### 다음 단계 (멀티 백엔드)
+
+cpp_single이 dispatch 병목을 해소한 뒤 남은 작업:
+
+- std::thread + thread pool (가우시안 축 멀티 스레드)
+- CUDA (큰 N, 큰 해상도)
 
 ## 산출물
 
