@@ -26,6 +26,8 @@ nanobind_add_module(
     render_2dgs_bindings
     STABLE_ABI
     src/render_2dgs_bindings.cpp
+    src/render_forward.cpp
+    src/render_backward.cpp
 )
 
 # Install to current directory for easy testing

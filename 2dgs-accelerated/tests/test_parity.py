@@ -22,7 +22,7 @@ def _sample_inputs(N=64, seed=0):
     return mus, sigmas, thetas, opacities, rgbs
 
 
-def test_parity(H=128, W=128, N=64, rtol=1e-4, atol=1e-4):
+def test_forward_parity(H=128, W=128, N=64, rtol=1e-4, atol=1e-4):
     mus, sigmas, thetas, opacities, rgbs = _sample_inputs(N=N)
 
     img_ref = ref_render(H, W, mus, sigmas, thetas, opacities, rgbs)
@@ -36,6 +36,33 @@ def test_parity(H=128, W=128, N=64, rtol=1e-4, atol=1e-4):
     return max_diff
 
 
+def test_backward_parity(H=64, W=64, N=16, atol=1e-3):
+    inputs = _sample_inputs(N=N)
+
+    inputs_ref = [t.clone().detach().requires_grad_(True) for t in inputs]
+    out_ref = ref_render(H, W, *inputs_ref)
+    grad_ref = torch.autograd.grad(out_ref.sum(), inputs_ref)
+
+    inputs_cpp = [t.clone().detach().requires_grad_(True) for t in inputs]
+    out_cpp = cpp_render(H, W, *inputs_cpp)
+    grad_cpp = torch.autograd.grad(out_cpp.sum(), inputs_cpp)
+
+    names = ["mus", "sigmas", "thetas", "opacities", "rgbs"]
+    max_diffs = {}
+    for name, g_ref, g_cpp in zip(names, grad_ref, grad_cpp):
+        diff = (g_ref - g_cpp).abs().max().item()
+        max_diffs[name] = diff
+        assert torch.allclose(g_ref, g_cpp, atol=atol), (
+            f"{name} grad mismatch: max_abs_diff = {diff:.3e} > atol={atol:.0e}"
+        )
+    return max_diffs
+
+
 if __name__ == "__main__":
-    max_diff = test_parity()
-    print(f"PARITY OK  max_abs_diff = {max_diff:.3e}")
+    max_diff = test_forward_parity()
+    print(f"forward PARITY OK  max_abs_diff = {max_diff:.3e}")
+
+    max_diffs = test_backward_parity()
+    print(f"backward PARITY OK")
+    for name, d in max_diffs.items():
+        print(f"  {name:10s} max_abs_diff = {d:.3e}")

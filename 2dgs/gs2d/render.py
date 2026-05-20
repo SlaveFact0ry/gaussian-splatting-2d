@@ -38,3 +38,4 @@ def render_gaussians_2d(H, W, mus, sigmas, thetas, opacities, rgbs, n_sigma=3.0)
         img[mask_bbox] = img[mask_bbox] + (opacity * rgb).view(1, 3) * f_x.unsqueeze(-1)
 
     return torch.clamp(img, 0.0, 1.0)
+
