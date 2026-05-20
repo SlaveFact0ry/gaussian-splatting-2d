@@ -43,9 +43,9 @@ dispatch 오버헤드 제거만으로 의미 있는 가속. 병렬화 없이.
 - `std_thread/` — std::thread + thread pool 기반 멀티 스레드 (backward 자명, forward는 per-thread buffer 후 reduce)
 - `cuda/` — GPU. 큰 N + 큰 해상도용.
 
-### 3D Gaussian Splatting Pipeline *(미진행)*
-
+### 3D Gaussian Splatting Pipeline
 COLMAP 기반 카메라 포즈 추정 → 3DGS 학습 (7000 iterations) → novel view synthesis.
 구현: [`3D Gaussian Splatting Colab.ipynb`](./3D%20Gaussian%20Splatting%20Colab.ipynb)
+출처: [yassgan/3DGaussianSplatting-INRIA-Method-Colab](https://github.com/yassgan/3DGaussianSplatting-INRIA-Method-Colab)
 
 ### [stop_and_shoot/](./stop_and_shoot) — ROS2 / C++ 응용 *(진행중)*
