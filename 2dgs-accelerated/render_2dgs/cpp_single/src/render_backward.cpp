@@ -99,7 +99,6 @@ void render_gaussian_2d_backward(int H, int W, int N, const float *mus,
                                  float n_sigma, float *grad_mus,
                                  float *grad_sigmas, float *grad_thetas,
                                  float *grad_opacities, float *grad_rgbs) {
-  render_2dgs::GlobalPool().ParallelFor(static_cast<uint32_t>(N), [&] )
   for (int i = 0; i < N; i++) {
     Gaussian2D g_in;
     g_in.mu = {mus[2 * i], mus[2 * i + 1]};

@@ -1,5 +1,6 @@
 #include "render_backward.hpp"
 #include "render_common.hpp"
+#include "thread_pool.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -103,28 +104,30 @@ void render_gaussian_2d_backward(int H, int W, int N,
                                  float *grad_thetas,
                                  float *grad_opacities,
                                  float *grad_rgbs) {
-  for (int i = 0; i < N; i++) {
-    Gaussian2D g_in;
-    g_in.mu      = {mus[2 * i], mus[2 * i + 1]};
-    g_in.sigma   = {sigmas[2 * i], sigmas[2 * i + 1]};
-    g_in.theta   = thetas[i];
-    g_in.opacity = opacities[i];
-    g_in.rgb     = {rgbs[3 * i], rgbs[3 * i + 1], rgbs[3 * i + 2]};
+  render_2dgs::GlobalPool().ParallelFor(static_cast<uint32_t>(N), [&] (uint32_t start, uint32_t end, int /*tid*/) {
+    for (uint32_t i = start; i < end; i++) {
+      Gaussian2D g_in;
+      g_in.mu = {mus[2 * i], mus[2 * i + 1]};
+      g_in.sigma = {sigmas[2 * i], sigmas[2 * i + 1]};
+      g_in.theta = thetas[i];
+      g_in.opacity = opacities[i];
+      g_in.rgb = {rgbs[3 * i], rgbs[3 * i + 1], rgbs[3 * i + 2]};
 
-    Vec2 g_mu, g_sigma;
-    float g_theta, g_op;
-    Vec3 g_rgb;
-    render_gaussian_2d_backward_one(H, W, g_in, out_raw, grad_out, n_sigma,
-                                    g_mu, g_sigma, g_theta, g_op, g_rgb);
+      Vec2 g_mu, g_sigma;
+      float g_theta, g_op;
+      Vec3 g_rgb;
+      render_gaussian_2d_backward_one(H, W, g_in, out_raw, grad_out, n_sigma,
+                                      g_mu, g_sigma, g_theta, g_op, g_rgb);
 
-    grad_mus[2 * i]      = g_mu.x;
-    grad_mus[2 * i + 1]  = g_mu.y;
-    grad_sigmas[2 * i]   = g_sigma.x;
-    grad_sigmas[2 * i + 1] = g_sigma.y;
-    grad_thetas[i]       = g_theta;
-    grad_opacities[i]    = g_op;
-    grad_rgbs[3 * i]     = g_rgb.r;
-    grad_rgbs[3 * i + 1] = g_rgb.g;
-    grad_rgbs[3 * i + 2] = g_rgb.b;
-  }
+      grad_mus[2 * i] = g_mu.x;
+      grad_mus[2 * i + 1] = g_mu.y;
+      grad_sigmas[2 * i] = g_sigma.x;
+      grad_sigmas[2 * i + 1] = g_sigma.y;
+      grad_thetas[i] = g_theta;
+      grad_opacities[i] = g_op;
+      grad_rgbs[3 * i] = g_rgb.r;
+      grad_rgbs[3 * i + 1] = g_rgb.g;
+      grad_rgbs[3 * i + 2] = g_rgb.b;
+    }
+  });
 }

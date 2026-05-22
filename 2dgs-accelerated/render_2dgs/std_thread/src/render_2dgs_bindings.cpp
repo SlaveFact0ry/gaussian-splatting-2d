@@ -16,7 +16,7 @@ static NpArr make_owned_array(float *data, size_t ndim, const size_t *shape) {
   return NpArr(data, ndim, shape, owner);
 }
 
-NB_MODULE(render_2dgs_bindings, m) {
+NB_MODULE(std_thread_bindings, m) {
   m.def(
       "render_gaussians_2d",
       [](int H, int W, FArr mus, FArr sigmas, FArr thetas, FArr opacities,
