@@ -18,7 +18,8 @@ import cv2
 import numpy as np
 import torch
 from torch.profiler import profile, record_function, ProfilerActivity, schedule
-from render_2dgs import render_gaussians_2d
+# from render_2dgs.std_thread import render_gaussians_2d
+from render_2dgs.cpp_single import render_gaussians_2d
 import sys; sys.path.insert(0, "../2dgs")
 from gs2d import ssim
 
