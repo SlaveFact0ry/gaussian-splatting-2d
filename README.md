@@ -1,7 +1,9 @@
 # Gaussian Splatting Playground
 
 <p align="center">
-  <img src="2dgs/outputs/output.gif" width="480" alt="2D Gaussian Splatting fitting">
+  <img src="2dgs/outputs/output.gif" width="380" alt="2DGS fitting">
+  &nbsp;
+  <img src="assets/3dgs.gif" width="480" height="330" alt="3DGS novel view synthesis">
 </p>
 
 회전·anisotropic Gaussian Splatting을 직접 구현하고, 백엔드·응용까지 확장하는 작업 모음.
@@ -62,6 +64,7 @@ Render kernel 시간 (Release, H=W=256, 8 cores):
 
 
 ### 3D Gaussian Splatting Pipeline
+
 COLMAP 기반 카메라 포즈 추정 → 3DGS 학습 (7000 iterations) → novel view synthesis.
 구현: [`3D Gaussian Splatting Colab.ipynb`](./3D%20Gaussian%20Splatting%20Colab.ipynb)
 출처: [yassgan/3DGaussianSplatting-INRIA-Method-Colab](https://github.com/yassgan/3DGaussianSplatting-INRIA-Method-Colab)
