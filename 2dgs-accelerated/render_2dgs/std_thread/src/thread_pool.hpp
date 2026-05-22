@@ -20,6 +20,16 @@ public:
 
   void EnqueueJob(Job job);
 
+  void WaitAll();
+
+  void ParallelFor(
+      std::uint32_t total,
+      std::function<void(std::uint32_t start, std::uint32_t end, int tid)> fn);
+
+  std::uint32_t NumThreads() const {
+    return static_cast<std::uint32_t>(workers_.size());
+  }
+
   ThreadPool(const ThreadPool &) = delete;
   auto operator=(const ThreadPool &) -> ThreadPool & = delete;
   ThreadPool(ThreadPool &&) = delete;
@@ -44,5 +54,11 @@ private:
   std::atomic<bool> stop_signal_{false}; ///< Flag to signal worker shutdown
   std::vector<std::thread> workers_;     ///< Worker threads
 };
+
+inline ThreadPool &GlobalPool() {
+  static ThreadPool pool(std::thread::hardware_concurrency(),
+                         std::thread::hardware_concurrency() * 4);
+  return pool;
+}
 
 } // namespace render_2dgs

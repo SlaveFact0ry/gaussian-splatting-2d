@@ -4,15 +4,11 @@
 #include <algorithm>
 #include <cmath>
 
-void render_gaussian_2d_backward_one(int H, int W,
-                                     const Gaussian2D &g_in,
+void render_gaussian_2d_backward_one(int H, int W, const Gaussian2D &g_in,
                                      const float *out_raw,
-                                     const float *grad_out,
-                                     float n_sigma,
-                                     Vec2 &grad_mu,
-                                     Vec2 &grad_sigma,
-                                     float &grad_theta,
-                                     float &grad_opacity,
+                                     const float *grad_out, float n_sigma,
+                                     Vec2 &grad_mu, Vec2 &grad_sigma,
+                                     float &grad_theta, float &grad_opacity,
                                      Vec3 &grad_rgb) {
   Vec2 sigma = {std::max(g_in.sigma.x, SIGMA_MIN),
                 std::max(g_in.sigma.y, SIGMA_MIN)};
@@ -49,9 +45,14 @@ void render_gaussian_2d_backward_one(int H, int W,
       float f = std::exp(-0.5f * e);
 
       int idx = (y * W + x) * 3;
-      float g0 = (out_raw[idx]     > 0.f && out_raw[idx]     < 1.f) ? grad_out[idx]     : 0.f;
-      float g1 = (out_raw[idx + 1] > 0.f && out_raw[idx + 1] < 1.f) ? grad_out[idx + 1] : 0.f;
-      float g2 = (out_raw[idx + 2] > 0.f && out_raw[idx + 2] < 1.f) ? grad_out[idx + 2] : 0.f;
+      float g0 =
+          (out_raw[idx] > 0.f && out_raw[idx] < 1.f) ? grad_out[idx] : 0.f;
+      float g1 = (out_raw[idx + 1] > 0.f && out_raw[idx + 1] < 1.f)
+                     ? grad_out[idx + 1]
+                     : 0.f;
+      float g2 = (out_raw[idx + 2] > 0.f && out_raw[idx + 2] < 1.f)
+                     ? grad_out[idx + 2]
+                     : 0.f;
 
       float op_f = g_in.opacity * f;
       g_rgb.r += op_f * g0;
@@ -78,38 +79,34 @@ void render_gaussian_2d_backward_one(int H, int W,
   float gsx = sx_clamped ? 0.f : (-2.0f / (sigma.x * sigma.x * sigma.x)) * gd_x;
   float gsy = sy_clamped ? 0.f : (-2.0f / (sigma.y * sigma.y * sigma.y)) * gd_y;
 
-  float gc = dA00 * 2.f * c * d_x + 2.f * dA01 * s * (d_x - d_y) + dA11 * 2.f * c * d_y;
-  float gs = dA00 * 2.f * s * d_y + 2.f * dA01 * c * (d_x - d_y) + dA11 * 2.f * s * d_x;
+  float gc = dA00 * 2.f * c * d_x + 2.f * dA01 * s * (d_x - d_y) +
+             dA11 * 2.f * c * d_y;
+  float gs = dA00 * 2.f * s * d_y + 2.f * dA01 * c * (d_x - d_y) +
+             dA11 * 2.f * s * d_x;
   float gtheta = -s * gc + c * gs;
 
-  grad_mu      = {gmu_x, gmu_y};
-  grad_sigma   = {gsx, gsy};
-  grad_theta   = gtheta;
+  grad_mu = {gmu_x, gmu_y};
+  grad_sigma = {gsx, gsy};
+  grad_theta = gtheta;
   grad_opacity = gop;
-  grad_rgb     = g_rgb;
+  grad_rgb = g_rgb;
 }
 
-void render_gaussian_2d_backward(int H, int W, int N,
-                                 const float *mus,
-                                 const float *sigmas,
-                                 const float *thetas,
-                                 const float *opacities,
-                                 const float *rgbs,
-                                 const float *out_raw,
-                                 const float *grad_out,
-                                 float n_sigma,
-                                 float *grad_mus,
-                                 float *grad_sigmas,
-                                 float *grad_thetas,
-                                 float *grad_opacities,
-                                 float *grad_rgbs) {
+void render_gaussian_2d_backward(int H, int W, int N, const float *mus,
+                                 const float *sigmas, const float *thetas,
+                                 const float *opacities, const float *rgbs,
+                                 const float *out_raw, const float *grad_out,
+                                 float n_sigma, float *grad_mus,
+                                 float *grad_sigmas, float *grad_thetas,
+                                 float *grad_opacities, float *grad_rgbs) {
+  render_2dgs::GlobalPool().ParallelFor(static_cast<uint32_t>(N), [&] )
   for (int i = 0; i < N; i++) {
     Gaussian2D g_in;
-    g_in.mu      = {mus[2 * i], mus[2 * i + 1]};
-    g_in.sigma   = {sigmas[2 * i], sigmas[2 * i + 1]};
-    g_in.theta   = thetas[i];
+    g_in.mu = {mus[2 * i], mus[2 * i + 1]};
+    g_in.sigma = {sigmas[2 * i], sigmas[2 * i + 1]};
+    g_in.theta = thetas[i];
     g_in.opacity = opacities[i];
-    g_in.rgb     = {rgbs[3 * i], rgbs[3 * i + 1], rgbs[3 * i + 2]};
+    g_in.rgb = {rgbs[3 * i], rgbs[3 * i + 1], rgbs[3 * i + 2]};
 
     Vec2 g_mu, g_sigma;
     float g_theta, g_op;
@@ -117,13 +114,13 @@ void render_gaussian_2d_backward(int H, int W, int N,
     render_gaussian_2d_backward_one(H, W, g_in, out_raw, grad_out, n_sigma,
                                     g_mu, g_sigma, g_theta, g_op, g_rgb);
 
-    grad_mus[2 * i]      = g_mu.x;
-    grad_mus[2 * i + 1]  = g_mu.y;
-    grad_sigmas[2 * i]   = g_sigma.x;
+    grad_mus[2 * i] = g_mu.x;
+    grad_mus[2 * i + 1] = g_mu.y;
+    grad_sigmas[2 * i] = g_sigma.x;
     grad_sigmas[2 * i + 1] = g_sigma.y;
-    grad_thetas[i]       = g_theta;
-    grad_opacities[i]    = g_op;
-    grad_rgbs[3 * i]     = g_rgb.r;
+    grad_thetas[i] = g_theta;
+    grad_opacities[i] = g_op;
+    grad_rgbs[3 * i] = g_rgb.r;
     grad_rgbs[3 * i + 1] = g_rgb.g;
     grad_rgbs[3 * i + 2] = g_rgb.b;
   }
