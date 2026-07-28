@@ -23,7 +23,9 @@ from gs2d import render_gaussians_2d, ssim
 
 # ---------- 측정 조건 (train.py와 동일하게) ----------
 H, W = 256, 256
-IMAGE_PATH = "soondol.jpg"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+IMAGE_PATH = os.path.join(BASE_DIR, "soondol.jpg")
+
 SEED = 42
 NUM_GAUSSIANS = 20
 LAMBDA_DSSIM = 0.2
