@@ -54,11 +54,23 @@ private:
   std::atomic<bool> stop_signal_{false}; ///< Flag to signal worker shutdown
   std::vector<std::thread> workers_;     ///< Worker threads
 };
+inline std::uint32_t DefaultNumThreads() {
+  if (const char *s = std::getenv("GS2D_NUM_THREADS")) {
+    int v = std::atoi(s);
+    if (v > 0) return static_cast<std::uint32_t>(v);
+  }
+  return std::thread::hardware_concurrency();
+}
 
 inline ThreadPool &GlobalPool() {
-  static ThreadPool pool(std::thread::hardware_concurrency(),
-                         std::thread::hardware_concurrency() * 4);
+  static const std::uint32_t T = DefaultNumThreads();
+  static ThreadPool pool(T, T * 4);
   return pool;
 }
+// inline ThreadPool &GlobalPool() {
+//   static ThreadPool pool(std::thread::hardware_concurrency(),
+//                          std::thread::hardware_concurrency() * 4);
+//   return pool;
+// }
 
 } // namespace render_2dgs

@@ -31,6 +31,12 @@ nanobind_add_module(
     src/thread_pool.cpp
 )
 
+target_compile_options(std_thread_bindings PRIVATE
+    -march=native
+    -ffast-math
+)
+
+
 install(TARGETS std_thread_bindings DESTINATION ${CMAKE_SOURCE_DIR})
 
 message(STATUS "")
