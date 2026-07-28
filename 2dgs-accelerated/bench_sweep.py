@@ -9,14 +9,19 @@ backward는 `img.sum().backward()` — 가장 가벼운 형태로 render backwar
 -- claude code --
 """
 
+import sys
 import time
+from pathlib import Path
 
 import numpy as np
 import torch
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "2dgs"))
+
+from gs2d.render import render_gaussians_2d as render_python
 from render_2dgs.cpp_single import render_gaussians_2d as render_cpp_single
 from render_2dgs.std_thread import render_gaussians_2d as render_std_thread
-
 
 # ---------- 측정 조건 ----------
 H, W = 256, 256
@@ -27,8 +32,10 @@ WARMUP = 3
 MEASURE = 10
 
 BACKENDS = {
+    "python": render_python,
     "cpp_single": render_cpp_single,
     "std_thread": render_std_thread,
+    # "cuda": render_cuda,
 }
 
 
@@ -87,12 +94,16 @@ def main():
 
     header = (
         f"{'N':>5} |"
+        f"       python fwd /  bwd /  total (ms)  |"
         f"   cpp_single fwd /  bwd /  total (ms)  |"
         f"   std_thread fwd /  bwd /  total (ms)  |"
-        f"  speedup (cs/st)  fwd /   bwd / total"
+        f"  speedup vs python  cpp_single / std_thread (total)"
     )
     print(header)
     print("-" * len(header))
+
+    def sp(a, b):
+        return a / b if b > 0 else float("inf")
 
     for N in N_VALUES:
         results = {}
@@ -100,23 +111,22 @@ def main():
             fwd, bwd = measure(render, N, WARMUP, MEASURE)
             results[name] = (fwd, bwd, fwd + bwd)
 
+        py = results["python"]
         cs = results["cpp_single"]
         st = results["std_thread"]
 
-        def sp(a, b):
-            return a / b if b > 0 else float("inf")
-
         row = (
             f"{N:>5} |"
+            f"   {py[0]:>8.3f} / {py[1]:>8.3f} / {py[2]:>8.3f}        |"
             f"   {cs[0]:>8.3f} / {cs[1]:>8.3f} / {cs[2]:>8.3f}        |"
             f"   {st[0]:>8.3f} / {st[1]:>8.3f} / {st[2]:>8.3f}        |"
-            f"                   {sp(cs[0], st[0]):>5.2f}x / {sp(cs[1], st[1]):>5.2f}x / {sp(cs[2], st[2]):>5.2f}x"
+            f"                     {sp(py[2], cs[2]):>6.2f}x / {sp(py[2], st[2]):>6.2f}x"
         )
         print(row)
 
     print()
-    print("speedup > 1.0 → std_thread 가 그만큼 빠름")
-    print("speedup < 1.0 → cpp_single 이 그만큼 빠름 (parallel overhead 손해)")
+    print("speedup vs python = python_total / backend_total (클수록 빠름)")
+    print("cpp_single vs std_thread 세부 비교는 fwd/bwd 열을 직접 비교")
 
 
 if __name__ == "__main__":
