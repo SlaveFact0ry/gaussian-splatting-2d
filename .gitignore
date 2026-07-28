@@ -42,6 +42,8 @@ __pycache__/
 .vscode/
 # C extensions
 *.so
+/outputs
+.python-version
 
 # Distribution / packaging
 .Python
@@ -227,4 +229,8 @@ pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,visualstudiocode,python
 **/**.mp4
-**/**.jpg4
+**/**.jpg
+
+### Project ###
+# raw profiling dumps (GS2D_PROFILE output, regenerate via bench scripts)
+prof_T*.txt
