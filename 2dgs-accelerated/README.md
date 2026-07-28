@@ -1,6 +1,6 @@
 # 2DGS Accelerated
 
-[2D Gaussian Splatting](https://github.com/SlaveFact0ry/2dgs) 의 render 백엔드를 C++로 가속한 구현.
+[../2dgs](../2dgs) 의 render 백엔드를 C++로 가속한 구현.
 
 원본 Python 구현(`gs2d.render`)과 동일한 결과를 내면서 dispatch 오버헤드 제거 + 멀티 스레드 병렬화로 큰 N에서 수~수십 배 빠름.
 
@@ -28,7 +28,7 @@
 │   │       ├── render_forward.cpp      # per-thread buffer + reduce
 │   │       ├── render_backward.cpp     # 가우시안 축 분할 (race-free)
 │   │       └── ...
-│   └── cuda/                      # CUDA 백엔드 (예정)
+│   └── cuda/                      # CUDA pybind 템플릿 (add/multiply hello-world) — render 커널 미착수
 ├── tests/
 │   └── test_parity.py             # Python ref와의 numerical parity (양쪽 backend)
 ├── train.py                       # 학습 entry point
@@ -37,7 +37,8 @@
 └── docs/
     ├── autograd_integration.md    # C++ 백엔드와 autograd 통합 패턴
     ├── backward_derivation.md     # backward 커널 수식 도출
-    └── dispatch_overhead.md       # dispatch 비용 + fused 커널 원리
+    ├── dispatch_overhead.md       # dispatch 비용 + fused 커널 원리
+    └── cpu-profiling.md           # CPU 천장의 기계론 진단 (예정)
 ```
 
 ---
@@ -46,7 +47,7 @@
 
 ### 빌드
 
-전제: `2dgs-accelerated/`와 같은 위치에 [원본 `2dgs/`](https://github.com/SlaveFact0ry/2dgs) 리포가 있어야 함 (parity 테스트, train의 reference).
+전제: 같은 레포의 [../2dgs](../2dgs)가 parity 테스트와 train의 reference로 쓰인다.
 
 **`CMAKE_BUILD_TYPE=Release` 기본 적용**돼 있음 (`-O3 -DNDEBUG`). debug build는 forward 10× 느림.
 
@@ -96,6 +97,9 @@ Backend × N sweep:
 python bench_sweep.py
 ```
 
+`bench.py`의 forward 측정치는 render + L1 + SSIM을 합친 값이다(render 단독이 아님).
+따라서 위 백엔드 비교 표의 canonical source는 render만 측정하는 `bench_sweep.py`다.
+
 ### 학습
 
 ```bash
@@ -131,25 +135,31 @@ from render_2dgs.std_thread import render_gaussians_2d   # 멀티 스레드 (기
 
 ## 성능
 
-### Render kernel 시간 (Release build, H=W=256, M1 Pro 8 cores)
+### Render kernel 시간 (Release build, H=W=256, Ryzen 5900X 12C/24T, 기본 T=24)
 
-| N | single_thread fwd / bwd / total | std_thread fwd / bwd / total | std_thread speedup |
+| N | cpp_single fwd / bwd / total | std_thread fwd / bwd / total | speedup fwd / bwd / total |
 |---:|---:|---:|---:|
-|   20 | 1.22 / 2.48 /   3.70 ms | 1.70 / 0.65 /   2.35 ms | 1.58× |
-|   50 | 3.26 / 6.97 /  10.23 ms | 2.19 / 1.59 /   3.78 ms | 2.71× |
-|  100 | 6.42 / 13.78 /  20.20 ms | 2.87 / 2.81 /   5.67 ms | 3.56× |
-|  200 | 13.45 / 29.14 /  42.59 ms | 4.27 / 5.54 /   9.80 ms | 4.34× |
-|  500 | 33.32 / 72.87 / 106.19 ms | 7.81 / 12.27 /  20.08 ms | 5.29× |
-| 1000 | 66.91 / 146.19 / 213.10 ms | 13.69 / 24.49 /  38.18 ms | 5.58× |
-| 2000 | 132.83 / 294.42 / 427.24 ms | 26.13 / 47.36 /  73.49 ms | **5.81×** |
+|   20 |   6.94 /   5.73 /   12.67 ms |  12.33 /  2.20 /  14.53 ms | 0.56× / 2.60× / 0.87× |
+|   50 |  19.11 /  16.48 /   35.59 ms |  13.47 /  5.44 /  18.91 ms | 1.42× / 3.03× / 1.88× |
+|  100 |  37.48 /  32.37 /   69.85 ms |  16.69 /  6.71 /  23.40 ms | 2.25× / 4.82× / 2.98× |
+|  200 |  77.03 /  67.98 /  145.01 ms |  16.53 /  9.80 /  26.33 ms | 4.66× / 6.94× / 5.51× |
+|  500 | 191.89 / 168.68 /  360.57 ms |  23.26 / 19.94 /  43.20 ms | 8.25× / 8.46× / 8.35× |
+| 1000 | 378.93 / 333.12 /  712.06 ms |  33.36 / 32.01 /  65.37 ms | 11.36× / 10.41× / 10.89× |
+| 2000 | 767.23 / 677.18 / 1444.41 ms |  50.82 / 62.32 / 113.14 ms | **15.10×** / 10.87× / 12.77× |
 
-(`python bench_sweep.py`로 재현)
+(`python bench_sweep.py`로 재현. 스레드 수는 `GS2D_NUM_THREADS`로 조절)
 
 핵심 관찰:
-- **Forward cross-over는 N≈30**. N=20에선 single_thread이 28% 빠름 (per-thread buffer 할당 오버헤드). 그 이상에선 std_thread 우위.
-- **Backward는 모든 N에서 std_thread 우위** (4-6×). 가우시안 축 자명 병렬화.
-- **N=2000에서 5.81× = 8 cores × ~73% efficiency** — HW 한계 근접.
-- 실제 학습 시나리오 (density control 후 N=100-1000)에서 **3.5×~5.6× 가속**.
+- **Forward는 작은 N에서 오히려 손해**. 기본 T=24 기준 N=20에서 std_thread가
+  cpp_single보다 느리다(0.56×). N=50부터 역전.
+- **Backward는 모든 N에서 우위** (2.6× ~ 10.9×). 가우시안 슬롯이 독립이라
+  reduce가 필요 없다.
+- **최적 스레드 수가 N에 의존한다.** N=20이면 T=4, N=1000 이상이면 T=24가 가장
+  빠르다 (`prof_T*.txt` 실측: N=20 total은 T=4에서 2.93ms로 최소, N=1000 total은
+  T=24에서 32.47ms로 최소). 호출당 오버헤드가 T에 비례해 커지기 때문 —
+  자세한 분해는 `docs/cpu-profiling.md` (문서 예정).
+- N=2000에서 15.1×. 이전 M1 Pro 측정의 "5.81× = 하드웨어 한계"라는 결론은
+  기계 교체 후 재측정으로 폐기되었다.
 
 ### Python ref 대비 (N=20)
 
@@ -186,9 +196,25 @@ C++ 백엔드는 같은 작업을 **단일 함수 호출**로 묶음:
 |---|---|---|
 | `cpp_single` | ✅ 완료 | 단일 스레드 fused C++. dispatch 제거가 핵심. |
 | `std_thread` | ✅ 완료 (기본) | std::thread + thread pool. backward 가우시안 축, forward per-thread buffer + reduce. |
-| `cuda` | 🔜 예정 | GPU. 큰 N + 큰 해상도용. `__host__ __device__` 헬퍼는 재사용 가능. |
+| `cuda` | 🔜 예정 | GPU. `add`/`multiply` pybind 템플릿만 존재 (`render_2dgs/cuda/`), render 커널은 미착수. `render_common.hpp` 헬퍼는 `__host__ __device__` 추가로 재사용 가능. |
 
 각 백엔드는 `render_2dgs/<backend>/__init__.py`의 `render_gaussians_2d` 시그니처를 동일하게 유지.
+
+---
+
+### 환경 변수
+
+| 변수 | 용도 |
+|---|---|
+| `GS2D_NUM_THREADS` | std_thread 백엔드의 스레드 수. 미지정 시 `hardware_concurrency()`. 풀은 프로세스당 1회만 생성되므로 스윕은 프로세스를 새로 띄워야 한다 |
+| `GS2D_PROFILE` | 설정 시 forward의 구간별 시간(alloc / fill / reduce / clamp)을 stderr로 출력 |
+
+### Compositing scope
+
+현재 forward/backward는 **additive compositing**이다 — 가우시안 기여를 순서 무관하게
+누적하고 마지막에 clamp한다. depth sort도 transmittance도 없다.
+따라서 CUDA 백엔드도 정렬이 필요 없다.
+sorted alpha-compositing + differentiable transmittance backward는 future work.
 
 ---
 
@@ -197,6 +223,6 @@ C++ 백엔드는 같은 작업을 **단일 함수 호출**로 묶음:
 - Python 3.10+
 - PyTorch (CPU 또는 CUDA)
 - CMake 3.15+
-- C++17 컴파일러 (Apple Clang / GCC / MSVC)
+- C++17 컴파일러 (GCC 권장, Linux)
 - [nanobind 2.0+](https://github.com/wjakob/nanobind) — `FetchContent`로 자동 다운로드
 - 학습/벤치 추가: `numpy`, `opencv-python`, `pytorch_msssim`
