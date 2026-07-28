@@ -1,0 +1,24 @@
+[project]
+name = "3dgs"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "ipympl>=0.9.0",
+    "matplotlib>=3.5.0",
+    "nanobind>=2.13.0",
+    "numpy>=1.20.0",
+    "opencv-contrib-python>=4.5.0",
+    "pytorch-msssim==1.0.0",
+    "scipy>=1.7.0",
+    "torch",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu124" }
