@@ -11,11 +11,12 @@ import torch
 from gs2d.render import render_gaussians_2d as ref_render
 from render_2dgs.cpp_single import render_gaussians_2d as cpp_render_single
 from render_2dgs.std_thread import render_gaussians_2d as cpp_render_thread
-
+from render_2dgs.cuda import render_gaussians_2d as cuda_render
 
 BACKENDS = {
     "cpp_single": cpp_render_single,
     "std_thread": cpp_render_thread,
+    "cuda": cuda_render,
 }
 
 
@@ -36,6 +37,7 @@ def test_forward_parity(H=128, W=128, N=64, rtol=1e-4, atol=1e-4):
     results = {}
     for backend_name, render in BACKENDS.items():
         img = render(H, W, mus, sigmas, thetas, opacities, rgbs)
+        img = img.detach().cpu()
         assert img_ref.shape == img.shape, (
             f"[{backend_name}] shape mismatch: {img_ref.shape} vs {img.shape}"
         )
